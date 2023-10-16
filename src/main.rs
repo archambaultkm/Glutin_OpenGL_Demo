@@ -8,10 +8,10 @@ use glutin::dpi::LogicalSize;
 use glutin::event::{Event, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
+use glutin_opengl_demo::{polygon_mode, PolygonMode};
 
 fn main() {
     // Initialize the event loop and window builder
-
     //the event loop handles events such as keyboard and mouse input, window resizing, and more.
     let event_loop = EventLoop::new();
 
@@ -20,22 +20,22 @@ fn main() {
         .with_title("OpenGL and Glutin Demo")
         .with_inner_size(LogicalSize::new(800, 600));
 
-        //create opengl context within the glutin window and set as current context.
-        let context = unsafe {
-            ContextBuilder::new()
-                .build_windowed(window, &event_loop)
-                .unwrap()
-                .make_current()
-        }
-            //unwrap is a cheap way to handle errors
-            .unwrap();
+    //create opengl context within the glutin window and set as current context.
+    let context = unsafe {
+        ContextBuilder::new()
+            .build_windowed(window, &event_loop)
+            .unwrap()
+            .make_current()
+    }
+        //unwrap is a cheap way to handle errors
+        .unwrap();
 
-        // Initialize OpenGL (make opengl functions available within the program)
-        gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
+    // Initialize OpenGL (make opengl functions available within the program)
+    gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
 
     unsafe {
         // window background colour
-        gl::ClearColor(0.5, 0.5, 0.9, 0.7);
+        gl::ClearColor(0.0, 0.0, 0.0, 1.0);
 
         // Create vertex and fragment shaders written in GLSL
         //vertex shader processes each vertex's position
@@ -63,11 +63,21 @@ fn main() {
 
         gl::UseProgram(shader_program);
 
-        //define vertices of a triangle
-        let vertices: [f32; 9] = [
-            -0.6, -0.6, 0.0,
-            0.6, -0.6, 0.0,
-            0.0, 0.6, 0.0,
+        //define vertices of two triangles to draw a rectangle
+        //there will be overlap between the two triangles,
+        let vertices: [f32; 12] = [
+            // first triangle
+            0.5,  0.5, 0.0,  // top right
+            0.5, -0.5, 0.0,  // bottom right
+            -0.5, -0.5, 0.0, // bottom left
+            -0.5,  0.5, 0.0,  // top left
+        ];
+
+        //so it's more efficient to only include each vertice once and then use
+        //an EBO to specify draw order.
+        let indices: [u32; 6] = [
+            0, 1, 3,
+            1, 2, 3
         ];
 
         //generate and bind vertex array object (VAO)
@@ -86,6 +96,16 @@ fn main() {
             gl::STATIC_DRAW,
         );
 
+        let mut ebo = 0;
+        gl::GenBuffers(1, &mut ebo);
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            (indices.len() * std::mem::size_of::<u32>()) as isize,
+            indices.as_ptr() as *const std::ffi::c_void,
+            gl::STATIC_DRAW,
+        );
+
         // Define the vertex attribute pointer for the position attribute
         let pos_attr_location = gl::GetAttribLocation(shader_program, CString::new("position").unwrap().as_ptr());
         gl::EnableVertexAttribArray(pos_attr_location as GLuint);
@@ -98,6 +118,9 @@ fn main() {
             std::ptr::null(),
         );
     }
+
+    // turn on polygon mode:
+     polygon_mode(PolygonMode::Line);
 
     // Main event loop runs until application is terminated.
     event_loop.run(move |event, _, control_flow| {
@@ -118,7 +141,12 @@ fn main() {
 
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            gl::DrawElements(
+                gl::TRIANGLES,
+                6,
+                gl::UNSIGNED_INT,
+                0 as *const _
+            );
         }
 
         context.swap_buffers().unwrap();
