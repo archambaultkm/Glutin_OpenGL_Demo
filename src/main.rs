@@ -1,7 +1,10 @@
+mod shader;
+
 extern crate gl;
 extern crate glutin;
 
 use std::ffi::CString;
+use std::mem;
 use gl::types::*;
 use glutin::ContextBuilder;
 use glutin::dpi::LogicalSize;
@@ -9,6 +12,8 @@ use glutin::event::{Event, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 use glutin_opengl_demo::{polygon_mode, PolygonMode};
+
+use shader::Shader;
 
 fn main() {
     // Initialize the event loop and window builder
@@ -33,44 +38,23 @@ fn main() {
     // Initialize OpenGL (make opengl functions available within the program)
     gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
 
+    let mut shader_program: Shader;
+    let mut vao : GLuint = 0;
     unsafe {
         // window background colour
         gl::ClearColor(0.0, 0.0, 0.0, 1.0);
 
-        // Create vertex and fragment shaders written in GLSL
-        //vertex shader processes each vertex's position
-        let vertex_shader_source = r#"
-            #version 330 core
-            layout(location = 0) in vec3 position;
-            void main() {
-                gl_Position = vec4(position, 1.0);
-            }
-        "#;
-
-        //fragment shader sets the colour of each fragment (pixel)
-        let fragment_shader_source = r#"
-            #version 330 core
-            out vec4 FragColor;
-            void main() {
-                FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-            }
-        "#;
-
-        // Compile and link shaders
-        let vertex_shader = compile_shader(vertex_shader_source, gl::VERTEX_SHADER);
-        let fragment_shader = compile_shader(fragment_shader_source, gl::FRAGMENT_SHADER);
-        let shader_program = create_shader_program(vertex_shader, fragment_shader);
-
-        gl::UseProgram(shader_program);
+        shader_program = Shader::new("shaders/shader.vs", "shaders/shader.fs");
+        gl::UseProgram(shader_program.ID);
 
         //define vertices of two triangles to draw a rectangle
         //there will be overlap between the two triangles,
-        let vertices: [f32; 12] = [
+        let vertices: [f32; 24] = [
             // first triangle
-            0.5,  0.5, 0.0,  // top right
-            0.5, -0.5, 0.0,  // bottom right
-            -0.5, -0.5, 0.0, // bottom left
-            -0.5,  0.5, 0.0,  // top left
+            0.5,  0.5, 0.0,  1.0, 0.0, 0.0,// top right
+            0.5, -0.5, 0.0,  0.0, 1.0, 0.0,// bottom right
+            -0.5, -0.5, 0.0, 1.0, 0.0, 0.0,// bottom left
+            -0.5,  0.5, 0.0, 0.0, 0.0, 1.0// top left
         ];
 
         //so it's more efficient to only include each vertice once and then use
@@ -80,12 +64,12 @@ fn main() {
             1, 2, 3
         ];
 
-        //generate and bind vertex array object (VAO)
-        let mut vao = 0;
+        // Generate and bind vertex array object (VAO)
+        //let mut vao = 0;
         gl::GenVertexArrays(1, &mut vao);
         gl::BindVertexArray(vao);
 
-        //Generate and bind vertex buffer object (VBO)
+        // Generate and bind vertex buffer object (VBO)
         let mut vbo = 0;
         gl::GenBuffers(1, &mut vbo);
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
@@ -96,6 +80,7 @@ fn main() {
             gl::STATIC_DRAW,
         );
 
+        // Generate and bind element buffer object (EBO)
         let mut ebo = 0;
         gl::GenBuffers(1, &mut ebo);
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
@@ -107,40 +92,64 @@ fn main() {
         );
 
         // Define the vertex attribute pointer for the position attribute
-        let pos_attr_location = gl::GetAttribLocation(shader_program, CString::new("position").unwrap().as_ptr());
-        gl::EnableVertexAttribArray(pos_attr_location as GLuint);
+        let pos_attr_location = gl::GetAttribLocation(shader_program.ID, CString::new("position").unwrap().as_ptr());
+        //gl::EnableVertexAttribArray(pos_attr_location as GLuint);
+
+        let stride = (6 * mem::size_of::<f32>()) as GLsizei;
+        // position attribute
         gl::VertexAttribPointer(
             pos_attr_location as GLuint,
             3,
             gl::FLOAT,
             gl::FALSE,
-            0,
+            stride,
             std::ptr::null(),
         );
+        gl::EnableVertexAttribArray(0);
+
+        // colour attribute
+        gl::VertexAttribPointer(
+            1,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            stride,
+            (3 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
+        );
+        gl::EnableVertexAttribArray(1);
     }
 
     // turn on polygon mode:
-     polygon_mode(PolygonMode::Line);
+    polygon_mode(PolygonMode::Fill);
+
+    // Get the current time
+    let start_time = std::time::Instant::now();
+    let offset : f32 = 0.5;
 
     // Main event loop runs until application is terminated.
     event_loop.run(move |event, _, control_flow| {
-        //equivalent to control_flow.set_wait() on newer versions
         *control_flow = ControlFlow::Poll;
 
-        match event {
-            //match statement waits until the user presses exit and reacts to that event by setting the
-            //control flow to exit (close the window)
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
+        // events
+        process_events(event, control_flow);
 
-            //This is a catch-all case in the match statement like finally in switch
-            _ => (),
-        }
-
+        // render
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            shader_program.set_float(&CString::new("x_offset").unwrap(), offset);
+            // // update shader uniform
+            // // Get the elapsed time as a Duration
+            // let elapsed_time = start_time.elapsed();
+            // // Convert the elapsed time to an f32 (in seconds)
+            // let time_value = elapsed_time.as_secs() as f32 + elapsed_time.subsec_nanos() as f32 / 1_000_000_000.0;
+            //
+            // let green_value = time_value.sin() / 2.0 + 0.5 + time_value;
+            // let my_colour = CString::new("my_colour").unwrap();
+            // let vertex_color_location = gl::GetUniformLocation(shader_program.ID, my_colour.as_ptr());
+            // gl::Uniform4f(vertex_color_location, 0.0, green_value, 0.0, 1.0);
+
+            gl::BindVertexArray(vao);
             gl::DrawElements(
                 gl::TRIANGLES,
                 6,
@@ -153,73 +162,17 @@ fn main() {
     });
 }
 
-fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
-    unsafe {
-        // Create a new shader object
-        let shader = gl::CreateShader(shader_type);
+fn process_events(event : Event<()>, control_flow : &mut ControlFlow) {
+// events
+    match event {
+        //match statement waits until the user presses exit and reacts to that event by setting the
+        //control flow to exit (close the window)
+        Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } => *control_flow = ControlFlow::Exit,
 
-        // Set the shader source and compile it
-        gl::ShaderSource(shader, 1, &CString::new(source).unwrap().as_ptr(), std::ptr::null());
-        gl::CompileShader(shader);
-
-        // Check for compilation errors
-        let mut success = gl::FALSE as GLint;
-        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
-
-        if success != gl::TRUE as GLint {
-            // Compilation failed, get the error message
-            let mut log_length = 0;
-            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut log_length);
-
-            let mut log = Vec::with_capacity(log_length as usize);
-            log.set_len(log_length as usize - 1); // Subtract 1 to ignore the null terminator
-
-            gl::GetShaderInfoLog(shader, log_length, std::ptr::null_mut(), log.as_mut_ptr() as *mut GLchar);
-
-            let error_message = String::from_utf8_lossy(&log);
-            println!("Shader compilation error: {}", error_message);
-        }
-
-        shader
-    }
-}
-
-fn create_shader_program(vertex_shader: GLuint, fragment_shader: GLuint) -> GLuint {
-    unsafe {
-        // Create a new shader program
-        let shader_program = gl::CreateProgram();
-
-        // Attach the vertex and fragment shaders to the program
-        gl::AttachShader(shader_program, vertex_shader);
-        gl::AttachShader(shader_program, fragment_shader);
-
-        // Link the shader program
-        gl::LinkProgram(shader_program);
-
-        // Check for linking errors
-        let mut success = gl::FALSE as GLint;
-        gl::GetProgramiv(shader_program, gl::LINK_STATUS, &mut success);
-
-        if success != gl::TRUE as GLint {
-            // Linking failed, get the error message
-            let mut log_length = 0;
-            gl::GetProgramiv(shader_program, gl::INFO_LOG_LENGTH, &mut log_length);
-
-            let mut log = Vec::with_capacity(log_length as usize);
-            log.set_len(log_length as usize - 1); // Subtract 1 to ignore the null terminator
-
-            gl::GetProgramInfoLog(shader_program, log_length, std::ptr::null_mut(), log.as_mut_ptr() as *mut GLchar);
-
-            let error_message = String::from_utf8_lossy(&log);
-            println!("Shader program linking error: {}", error_message);
-        }
-
-        // Detach and delete the individual shaders since they are now part of the program
-        gl::DetachShader(shader_program, vertex_shader);
-        gl::DetachShader(shader_program, fragment_shader);
-        gl::DeleteShader(vertex_shader);
-        gl::DeleteShader(fragment_shader);
-
-        shader_program
+        //This is a catch-all case in the match statement like finally in switch
+        _ => (),
     }
 }
