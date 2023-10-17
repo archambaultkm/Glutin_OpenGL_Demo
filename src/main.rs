@@ -1,19 +1,24 @@
 mod shader;
 
 extern crate gl;
-extern crate glutin;
-
-use std::ffi::CString;
-use std::mem;
 use gl::types::*;
+
+extern crate glutin;
 use glutin::ContextBuilder;
 use glutin::dpi::LogicalSize;
 use glutin::event::{Event, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
-use glutin_opengl_demo::{polygon_mode, PolygonMode};
 
+use std::ffi::CString;
+use std::mem;
+
+use glutin_opengl_demo::{polygon_mode, PolygonMode};
 use shader::Shader;
+
+// settings
+const WINDOW_WIDTH : u32 = 800;
+const WINDOW_HEIGHT : u32 = 600;
 
 fn main() {
     // Initialize the event loop and window builder
@@ -23,7 +28,7 @@ fn main() {
     //configure new window properties with windowbuilder
     let window = WindowBuilder::new()
         .with_title("OpenGL and Glutin Demo")
-        .with_inner_size(LogicalSize::new(800, 600));
+        .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
 
     //create opengl context within the glutin window and set as current context.
     let context = unsafe {
@@ -41,9 +46,6 @@ fn main() {
     let mut shader_program: Shader;
     let mut vao : GLuint = 0;
     unsafe {
-        // window background colour
-        gl::ClearColor(0.0, 0.0, 0.0, 1.0);
-
         shader_program = Shader::new("shaders/shader.vs", "shaders/shader.fs");
         gl::UseProgram(shader_program.ID);
 
@@ -51,10 +53,10 @@ fn main() {
         //there will be overlap between the two triangles,
         let vertices: [f32; 24] = [
             // first triangle
-            0.5,  0.5, 0.0,  1.0, 0.0, 0.0,// top right
-            0.5, -0.5, 0.0,  0.0, 1.0, 0.0,// bottom right
-            -0.5, -0.5, 0.0, 1.0, 0.0, 0.0,// bottom left
-            -0.5,  0.5, 0.0, 0.0, 0.0, 1.0// top left
+            0.5, 0.5, 0.0, 1.0, 0.0, 0.0, // top right
+            0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // bottom right
+            -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom left
+            -0.5, 0.5, 0.0, 0.0, 0.0, 1.0 // top left
         ];
 
         //so it's more efficient to only include each vertice once and then use
@@ -70,61 +72,25 @@ fn main() {
         gl::BindVertexArray(vao);
 
         // Generate and bind vertex buffer object (VBO)
-        let mut vbo = 0;
-        gl::GenBuffers(1, &mut vbo);
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl::BufferData(
+        define_buffer(
             gl::ARRAY_BUFFER,
-            (vertices.len() * std::mem::size_of::<f32>()) as isize,
-            vertices.as_ptr() as *const std::ffi::c_void,
-            gl::STATIC_DRAW,
+            &vertices,
+            gl::STATIC_DRAW
         );
 
         // Generate and bind element buffer object (EBO)
-        let mut ebo = 0;
-        gl::GenBuffers(1, &mut ebo);
-        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-        gl::BufferData(
+        define_buffer(
             gl::ELEMENT_ARRAY_BUFFER,
-            (indices.len() * std::mem::size_of::<u32>()) as isize,
-            indices.as_ptr() as *const std::ffi::c_void,
-            gl::STATIC_DRAW,
+            &indices,
+            gl::STATIC_DRAW
         );
-
-        // Define the vertex attribute pointer for the position attribute
-        let pos_attr_location = gl::GetAttribLocation(shader_program.ID, CString::new("position").unwrap().as_ptr());
-        //gl::EnableVertexAttribArray(pos_attr_location as GLuint);
 
         let stride = (6 * mem::size_of::<f32>()) as GLsizei;
-        // position attribute
-        gl::VertexAttribPointer(
-            pos_attr_location as GLuint,
-            3,
-            gl::FLOAT,
-            gl::FALSE,
-            stride,
-            std::ptr::null(),
-        );
-        gl::EnableVertexAttribArray(0);
-
-        // colour attribute
-        gl::VertexAttribPointer(
-            1,
-            3,
-            gl::FLOAT,
-            gl::FALSE,
-            stride,
-            (3 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
-        );
-        gl::EnableVertexAttribArray(1);
+        define_attrib_pointers(shader_program.ID, stride);
     }
 
     // turn on polygon mode:
-    polygon_mode(PolygonMode::Fill);
-
-    // Get the current time
-    let start_time = std::time::Instant::now();
-    let offset : f32 = 0.5;
+    polygon_mode(PolygonMode::Line);
 
     // Main event loop runs until application is terminated.
     event_loop.run(move |event, _, control_flow| {
@@ -135,19 +101,9 @@ fn main() {
 
         // render
         unsafe {
+            // window background colour
+            gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-
-            shader_program.set_float(&CString::new("x_offset").unwrap(), offset);
-            // // update shader uniform
-            // // Get the elapsed time as a Duration
-            // let elapsed_time = start_time.elapsed();
-            // // Convert the elapsed time to an f32 (in seconds)
-            // let time_value = elapsed_time.as_secs() as f32 + elapsed_time.subsec_nanos() as f32 / 1_000_000_000.0;
-            //
-            // let green_value = time_value.sin() / 2.0 + 0.5 + time_value;
-            // let my_colour = CString::new("my_colour").unwrap();
-            // let vertex_color_location = gl::GetUniformLocation(shader_program.ID, my_colour.as_ptr());
-            // gl::Uniform4f(vertex_color_location, 0.0, green_value, 0.0, 1.0);
 
             gl::BindVertexArray(vao);
             gl::DrawElements(
@@ -160,6 +116,57 @@ fn main() {
 
         context.swap_buffers().unwrap();
     });
+}
+
+//generate and bind buffer objects for both VBO and EBO
+fn define_buffer<T>(target: GLenum, array : &[T], draw_type : GLenum) -> GLuint {
+    let mut buffer_object = 0;
+    unsafe {
+        gl::GenBuffers(1, &mut buffer_object);
+        gl::BindBuffer(target, buffer_object);
+        gl::BufferData(
+            target,
+            (array.len() * std::mem::size_of::<T>()) as isize,
+            array.as_ptr() as *const std::ffi::c_void,
+            draw_type,
+        );
+    }
+
+    buffer_object
+}
+
+unsafe fn define_attrib_pointers(shader_program_id : GLuint, stride : GLsizei) {
+    let pos_attr_location = gl::GetAttribLocation(
+        shader_program_id,
+        CString::new("position").unwrap().as_ptr()
+    );
+
+    let colour_attr_location = gl::GetAttribLocation(
+        shader_program_id,
+        CString::new("colour").unwrap().as_ptr()
+    );
+
+    // position attribute
+    gl::VertexAttribPointer(
+        pos_attr_location as GLuint,
+        3,
+        gl::FLOAT,
+        gl::FALSE,
+        stride,
+        std::ptr::null(),
+    );
+    gl::EnableVertexAttribArray(pos_attr_location as GLuint);
+
+    // colour attribute
+    gl::VertexAttribPointer(
+        colour_attr_location as GLuint,
+        3,
+        gl::FLOAT,
+        gl::FALSE,
+        stride,
+        (3 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
+    );
+    gl::EnableVertexAttribArray(colour_attr_location as GLuint);
 }
 
 fn process_events(event : Event<()>, control_flow : &mut ControlFlow) {
