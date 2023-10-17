@@ -4,7 +4,7 @@ use std::io::Read;
 use cgmath::{Matrix, Matrix4};
 use gl::types::{GLchar, GLenum, GLint, GLuint};
 
-pub(crate) struct Shader {
+pub struct Shader {
     //program ID
     pub ID: u32
 }

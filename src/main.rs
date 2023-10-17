@@ -1,8 +1,9 @@
 mod shader;
 mod camera;
-mod window;
+mod game_window;
 mod cube;
 mod texture;
+mod global;
 
 extern crate gl;
 use gl::types::*;
@@ -25,11 +26,9 @@ use shader::Shader;
 use camera::Camera;
 use cube::Cube;
 use crate::texture::Texture;
-use crate::window::process_events;
+use game_window::GameWindow;
+use crate::global::{WINDOW_HEIGHT, WINDOW_WIDTH};
 
-// settings
-const WINDOW_WIDTH : u32 = 800;
-const WINDOW_HEIGHT : u32 = 600;
 
 fn main() {
 
@@ -37,32 +36,10 @@ fn main() {
     //the event loop handles events such as keyboard and mouse input, window resizing, and more.
     let event_loop = EventLoop::new();
 
-    //configure new window properties with windowbuilder
-    let window = WindowBuilder::new()
-        .with_title("OpenGL and Glutin Demo")
-        .with_inner_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT));
-
-    //create opengl context within the glutin window and set as current context.
-    let context = unsafe {
-        ContextBuilder::new()
-            .build_windowed(window, &event_loop)
-            .unwrap()
-            .make_current()
-    }
-        //unwrap is a cheap way to handle errors
-        .unwrap();
-
-    let mut camera = Camera {
-        position: Point3::new(0.0, 0.0, 3.0),
-        ..Camera::default()
-    };
-
-    let mut first_mouse = true;
-    let mut last_x: f32 = WINDOW_WIDTH as f32 / 2.0;
-    let mut last_y: f32 = WINDOW_HEIGHT as f32 / 2.0;
+    let mut window = GameWindow::new();
 
     // Initialize OpenGL (make opengl functions available within the program)
-    gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
+    gl::load_with(|symbol| window.context.get_proc_address(symbol) as *const _);
 
     //TODO move to init objects
     let cube = Cube::new(Vector3::new(0.0, 0.0, 0.0));
@@ -118,7 +95,7 @@ fn main() {
         let delta_time = delta_time.as_secs() as f32 + delta_time.subsec_nanos() as f32 / 1_000_000_000.0;
 
         // events
-        process_events(event, &mut first_mouse, &mut last_x, &mut last_y, &mut camera, delta_time, control_flow);
+        window.process_events(event, delta_time, control_flow);
 
         // render
         unsafe {
@@ -131,13 +108,13 @@ fn main() {
             gl::BindTexture(gl::TEXTURE_2D, texture1.id);
 
             let projection: Matrix4<f32> = perspective(
-                Deg(camera.zoom),
+                Deg(window.camera.zoom),
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
                 0.1,
                 100.0
             );
 
-            let view: Matrix4<f32> = camera.get_view_matrix();
+            let view: Matrix4<f32> = window.camera.get_view_matrix();
 
             // pass to the shaders
             shader_program.set_mat4(&CString::new("view").unwrap(), &view);
@@ -148,7 +125,7 @@ fn main() {
 
             let mut model: Matrix4<f32> = Matrix4::from_translation(cube.position);
             let angle = 20.0;
-            model = model * Matrix4::from_axis_angle(vec3(1.0, 0.0, 0.5).normalize(), Deg(angle));
+            model = model * Matrix4::from_axis_angle(vec3(1.0, 0.0, 0.0).normalize(), Deg(angle));
             shader_program.set_mat4(&CString::new("model").unwrap(), &model);
 
             gl::DrawArrays(
@@ -158,7 +135,7 @@ fn main() {
             );
         }
 
-        context.swap_buffers().unwrap();
+        window.context.swap_buffers().unwrap();
     });
 }
 

@@ -3,7 +3,7 @@ use cgmath;
 use cgmath::vec3;
 use cgmath::prelude::*;
 
-type Point3 = cgmath::Point3<f32>;
+pub type Point3 = cgmath::Point3<f32>;
 type Vector3 = cgmath::Vector3<f32>;
 type Matrix4 = cgmath::Matrix4<f32>;
 
@@ -66,8 +66,8 @@ impl Camera {
     }
 
     /// Processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
-    pub fn process_keyboard(&mut self, direction: Camera_Movement, deltaTime: f32) {
-        let velocity = self.movement_speed * deltaTime;
+    pub fn process_keyboard(&mut self, direction: Camera_Movement, delta_time: f32) {
+        let velocity = self.movement_speed * delta_time;
         if direction == FORWARD {
             self.position += self.front * velocity;
         }
