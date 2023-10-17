@@ -10,7 +10,10 @@ use glutin::event::{Event, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 
-use std::ffi::{CStr, CString};
+extern crate cgmath;
+use cgmath::{Matrix, Matrix4, Rad, SquareMatrix, vec3};
+
+use std::ffi::CString;
 use std::mem;
 use std::path::Path;
 use image::GenericImage;
@@ -98,19 +101,15 @@ fn main() {
             );
         texture1 = load_texture(img1, gl::RGB, false);
 
-        let img2 = image::open(
-            &Path::new("resources/textures/awesomeface.png"))
-            .expect("Failed to load texture"
-            );
-        texture2 = load_texture(img2, gl::RGBA, true);
-
-
+        //assign shader sampler to texture unit
         shader_program.set_int(&CString::new("texture1").unwrap(), 0);
-        shader_program.set_int(&CString::new("texture2").unwrap(), 1);
     }
 
     // set polygon mode:
     polygon_mode(PolygonMode::Fill);
+
+    // Get the current time
+    let start_time = std::time::Instant::now();
 
     // Main event loop runs until application is terminated.
     event_loop.run(move |event, _, control_flow| {
@@ -121,6 +120,10 @@ fn main() {
 
         // render
         unsafe {
+
+            let elapsed_time = start_time.elapsed();
+            let time_value = elapsed_time.as_secs() as f32 + elapsed_time.subsec_nanos() as f32 / 1_000_000_000.0;
+
             // window background colour
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -128,8 +131,21 @@ fn main() {
             // bind textures on corresponding texture units
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, texture1);
-            gl::ActiveTexture(gl::TEXTURE1);
-            gl::BindTexture(gl::TEXTURE_2D, texture2);
+
+            let mut transform: Matrix4<f32> = Matrix4::identity();
+            transform = transform * Matrix4::from_translation(vec3(0.0, 0.0, 0.0));
+            transform = transform * Matrix4::from_angle_z(Rad(time_value));
+
+            let transform_loc = gl::GetUniformLocation(
+                shader_program.ID,
+                CString::new("transform").unwrap().as_ptr()
+            );
+            gl::UniformMatrix4fv(
+                transform_loc,
+                1,
+                gl::FALSE,
+                transform.as_ptr()
+            );
 
 
             gl::BindVertexArray(vao);
