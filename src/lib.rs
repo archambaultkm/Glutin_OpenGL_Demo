@@ -1,4 +1,6 @@
 use gl::types::GLenum;
+use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use glutin::event_loop::ControlFlow;
 
 // code found: https://rust-tutorials.github.io/learn-opengl/basics/003-rectangle.html
 /// The polygon display modes you can set.
@@ -16,3 +18,4 @@ pub enum PolygonMode {
 pub fn polygon_mode(mode: PolygonMode) {
     unsafe { gl::PolygonMode(gl::FRONT_AND_BACK, mode as GLenum) };
 }
+

@@ -1,4 +1,6 @@
 mod shader;
+mod camera;
+mod window;
 
 extern crate gl;
 use gl::types::*;
@@ -11,7 +13,7 @@ use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 
 extern crate cgmath;
-use cgmath::{Matrix, Matrix4, Rad, SquareMatrix, vec3};
+use cgmath::{Deg, InnerSpace, Matrix, Matrix4, perspective, Point3, Rad, SquareMatrix, vec3};
 
 use std::ffi::CString;
 use std::mem;
@@ -19,7 +21,10 @@ use std::path::Path;
 use image::GenericImage;
 
 use glutin_opengl_demo::{polygon_mode, PolygonMode};
+
 use shader::Shader;
+use camera::Camera;
+use crate::window::process_events;
 
 // settings
 const WINDOW_WIDTH : u32 = 800;
@@ -45,6 +50,15 @@ fn main() {
         //unwrap is a cheap way to handle errors
         .unwrap();
 
+    let mut camera = Camera {
+        position: Point3::new(0.0, 0.0, 3.0),
+        ..Camera::default()
+    };
+
+    //timing
+    let mut delta_time : f32 = 0.0;
+    let mut last_frame : f32 = 0.0;
+
     // Initialize OpenGL (make opengl functions available within the program)
     gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
 
@@ -55,22 +69,53 @@ fn main() {
     unsafe {
         shader_program = Shader::new("shaders/shader.vs", "shaders/shader.fs");
         gl::UseProgram(shader_program.ID);
+        gl::Enable(gl::DEPTH_TEST);
 
-        //define vertices of two triangles to draw a rectangle
-        let vertices: [f32; 32] = [
-            // positions       // colors        // texture coords
-            0.5,  0.5, 0.0,   1.0, 0.0, 0.0,   1.0, 1.0, // top right
-            0.5, -0.5, 0.0,   0.0, 1.0, 0.0,   1.0, 0.0, // bottom right
-            -0.5, -0.5, 0.0,   0.0, 0.0, 1.0,   0.0, 0.0, // bottom left
-            -0.5,  0.5, 0.0,   1.0, 1.0, 0.0,   0.0, 1.0  // top left
+        let vertices: [f32; 180] = [
+            -0.5, -0.5, -0.5,  0.0, 0.0,
+            0.5, -0.5, -0.5,  1.0, 0.0,
+            0.5,  0.5, -0.5,  1.0, 1.0,
+            0.5,  0.5, -0.5,  1.0, 1.0,
+            -0.5,  0.5, -0.5,  0.0, 1.0,
+            -0.5, -0.5, -0.5,  0.0, 0.0,
+
+            -0.5, -0.5,  0.5,  0.0, 0.0,
+            0.5, -0.5,  0.5,  1.0, 0.0,
+            0.5,  0.5,  0.5,  1.0, 1.0,
+            0.5,  0.5,  0.5,  1.0, 1.0,
+            -0.5,  0.5,  0.5,  0.0, 1.0,
+            -0.5, -0.5,  0.5,  0.0, 0.0,
+
+            -0.5,  0.5,  0.5,  1.0, 0.0,
+            -0.5,  0.5, -0.5,  1.0, 1.0,
+            -0.5, -0.5, -0.5,  0.0, 1.0,
+            -0.5, -0.5, -0.5,  0.0, 1.0,
+            -0.5, -0.5,  0.5,  0.0, 0.0,
+            -0.5,  0.5,  0.5,  1.0, 0.0,
+
+            0.5,  0.5,  0.5,  1.0, 0.0,
+            0.5,  0.5, -0.5,  1.0, 1.0,
+            0.5, -0.5, -0.5,  0.0, 1.0,
+            0.5, -0.5, -0.5,  0.0, 1.0,
+            0.5, -0.5,  0.5,  0.0, 0.0,
+            0.5,  0.5,  0.5,  1.0, 0.0,
+
+            -0.5, -0.5, -0.5,  0.0, 1.0,
+            0.5, -0.5, -0.5,  1.0, 1.0,
+            0.5, -0.5,  0.5,  1.0, 0.0,
+            0.5, -0.5,  0.5,  1.0, 0.0,
+            -0.5, -0.5,  0.5,  0.0, 0.0,
+            -0.5, -0.5, -0.5,  0.0, 1.0,
+
+            -0.5,  0.5, -0.5,  0.0, 1.0,
+            0.5,  0.5, -0.5,  1.0, 1.0,
+            0.5,  0.5,  0.5,  1.0, 0.0,
+            0.5,  0.5,  0.5,  1.0, 0.0,
+            -0.5,  0.5,  0.5,  0.0, 0.0,
+            -0.5,  0.5, -0.5,  0.0, 1.0
         ];
 
-        //so it's more efficient to only include each vertex once and then use
-        //an EBO to specify draw order.
-        let indices: [u32; 6] = [
-            0, 1, 3,
-            1, 2, 3
-        ];
+
 
         // Generate and bind vertex array object (VAO)
         gl::GenVertexArrays(1, &mut vao);
@@ -84,14 +129,14 @@ fn main() {
         );
 
         // Generate and bind element buffer object (EBO)
-        define_buffer(
-            gl::ELEMENT_ARRAY_BUFFER,
-            &indices,
-            gl::STATIC_DRAW
-        );
+        // define_buffer(
+        //     gl::ELEMENT_ARRAY_BUFFER,
+        //     &indices,
+        //     gl::STATIC_DRAW
+        // );
 
         // define attribute pointers
-        let stride = (8 * mem::size_of::<GLfloat>()) as GLsizei;
+        let stride = (5 * mem::size_of::<GLfloat>()) as GLsizei;
         define_attrib_pointers(shader_program.ID, stride);
 
         // load and create a texture
@@ -108,53 +153,73 @@ fn main() {
     // set polygon mode:
     polygon_mode(PolygonMode::Fill);
 
-    // Get the current time
-    let start_time = std::time::Instant::now();
+    // Initialize variables for tracking time
+    let mut last_frame_time = std::time::Instant::now();
+    let mut delta_time = std::time::Duration::new(0, 0);
 
     // Main event loop runs until application is terminated.
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
+        let current_frame_time = std::time::Instant::now();
+        delta_time = current_frame_time.duration_since(last_frame_time);
+        last_frame_time = current_frame_time;
+
+        // Convert delta_time to seconds as a floating-point number
+        let delta_time = delta_time.as_secs() as f32 + delta_time.subsec_nanos() as f32 / 1_000_000_000.0;
+
         // events
-        process_events(event, control_flow);
+        process_events(event, &mut camera, delta_time, control_flow);
 
         // render
         unsafe {
 
-            let elapsed_time = start_time.elapsed();
-            let time_value = elapsed_time.as_secs() as f32 + elapsed_time.subsec_nanos() as f32 / 1_000_000_000.0;
-
             // window background colour
             gl::ClearColor(0.0, 0.0, 0.0, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             // bind textures on corresponding texture units
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, texture1);
 
-            let mut transform: Matrix4<f32> = Matrix4::identity();
-            transform = transform * Matrix4::from_translation(vec3(0.0, 0.0, 0.0));
-            transform = transform * Matrix4::from_angle_z(Rad(time_value));
+            // create transformations
+            //let model: Matrix4<f32> = Matrix4::from_angle_x(Deg(-55.));
 
-            let transform_loc = gl::GetUniformLocation(
-                shader_program.ID,
-                CString::new("transform").unwrap().as_ptr()
-            );
-            gl::UniformMatrix4fv(
-                transform_loc,
-                1,
-                gl::FALSE,
-                transform.as_ptr()
+            let projection: Matrix4<f32> = perspective(
+                Deg(camera.zoom),
+                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+                0.1,
+                100.0
             );
 
+            let view: Matrix4<f32> = camera.get_view_matrix();
 
+            // pass to the shaders
+            //shader_program.set_mat4(&CString::new("model").unwrap(), &model);
+            shader_program.set_mat4(&CString::new("view").unwrap(), &view);
+            shader_program.set_mat4(&CString::new("projection").unwrap(), &projection);
+
+            // draw
             gl::BindVertexArray(vao);
-            gl::DrawElements(
+
+            let position = vec3(0.0, 0.0, 0.0);
+
+            let mut model: Matrix4<f32> = Matrix4::from_translation(position);
+            let angle = 20.0;
+            model = model * Matrix4::from_axis_angle(vec3(1.0, 0.3, 0.5).normalize(), Deg(angle));
+            shader_program.set_mat4(&CString::new("model").unwrap(), &model);
+
+            gl::DrawArrays(
                 gl::TRIANGLES,
-                6,
-                gl::UNSIGNED_INT,
-                0 as *const _
+                0,
+                36
             );
+            // gl::DrawElements(
+            //     gl::TRIANGLES,
+            //     6,
+            //     gl::UNSIGNED_INT,
+            //     0 as *const _
+            // );
         }
 
         context.swap_buffers().unwrap();
@@ -223,7 +288,7 @@ unsafe fn define_attrib_pointers(shader_program_id : GLuint, stride : GLsizei) {
         gl::FLOAT,
         gl::FALSE,
         stride,
-        (6 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
+        (3 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
     );
     gl::EnableVertexAttribArray(texture_attr_location as GLuint);
 }
@@ -259,19 +324,4 @@ unsafe fn load_texture(mut img: image::DynamicImage, format : GLenum, flip : boo
     gl::GenerateMipmap(gl::TEXTURE_2D);
 
     texture
-}
-
-fn process_events(event : Event<()>, control_flow : &mut ControlFlow) {
-// events
-    match event {
-        //match statement waits until the user presses exit and reacts to that event by setting the
-        //control flow to exit (close the window)
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
-
-        //This is a catch-all case in the match statement like finally in switch
-        _ => (),
-    }
 }

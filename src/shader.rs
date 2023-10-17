@@ -1,6 +1,7 @@
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
+use cgmath::{Matrix, Matrix4};
 use gl::types::{GLchar, GLenum, GLint, GLuint};
 
 pub(crate) struct Shader {
@@ -40,6 +41,20 @@ impl Shader {
         gl::Uniform1f(
             gl::GetUniformLocation(self.ID, name.as_ptr()),
             value
+        );
+    }
+
+    pub unsafe fn set_mat4(&self, name: &CStr, matrix : &Matrix4<f32>) {
+        let location = gl::GetUniformLocation(
+            self.ID,
+            name.as_ptr()
+        );
+
+        gl::UniformMatrix4fv(
+            location,
+            1,
+            gl::FALSE,
+            matrix.as_ptr()
         );
     }
 }

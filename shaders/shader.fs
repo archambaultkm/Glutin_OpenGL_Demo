@@ -2,7 +2,6 @@
 
 out vec4 FragColour;
 
-in vec3 my_colour;
 in vec2 texture_coordinate;
 
 //texture sampler
