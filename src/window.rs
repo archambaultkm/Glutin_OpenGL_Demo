@@ -4,6 +4,9 @@ use crate::camera::{Camera, Camera_Movement::*};
 
 pub fn process_events(
     event : Event<()>,
+    first_mouse : &mut bool,
+    last_x : &mut f32,
+    last_y : &mut f32,
     camera: &mut Camera,
     delta_time : f32,
     control_flow : &mut ControlFlow) {
@@ -14,7 +17,26 @@ pub fn process_events(
             }
 
             WindowEvent::KeyboardInput { input, .. } => {
-                process_input(input, delta_time, camera);
+                process_key_input(input, delta_time, camera);
+            }
+
+            WindowEvent::CursorMoved { position, .. } => {
+                let xpos = position.x as f32;
+                let ypos = position.y as f32;
+
+                if *first_mouse {
+                    *last_x = xpos;
+                    *last_y = ypos;
+                    *first_mouse = false;
+                }
+
+                let xoffset = xpos - *last_x;
+                let yoffset = *last_y - ypos; // reversed since y-coordinates go from bottom to top
+
+                *last_x = xpos;
+                *last_y = ypos;
+
+                camera.process_mouse_movement(xoffset, yoffset, true);
             }
 
             _ => {}
@@ -25,7 +47,7 @@ pub fn process_events(
     }
 }
 
-pub fn process_input(input : KeyboardInput, delta_time : f32, camera : &mut Camera) {
+pub fn process_key_input(input : KeyboardInput, delta_time : f32, camera : &mut Camera) {
     if let Some(key_code) = input.virtual_keycode {
         match key_code {
             VirtualKeyCode::Escape => {

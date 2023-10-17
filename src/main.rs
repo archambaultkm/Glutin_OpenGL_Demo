@@ -1,6 +1,7 @@
 mod shader;
 mod camera;
 mod window;
+mod cube;
 
 extern crate gl;
 use gl::types::*;
@@ -13,7 +14,7 @@ use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 
 extern crate cgmath;
-use cgmath::{Deg, InnerSpace, Matrix, Matrix4, perspective, Point3, Rad, SquareMatrix, vec3};
+use cgmath::{Deg, InnerSpace, Matrix, Matrix4, perspective, Point3, Rad, SquareMatrix, vec3, Vector3};
 
 use std::ffi::CString;
 use std::mem;
@@ -24,6 +25,7 @@ use glutin_opengl_demo::{polygon_mode, PolygonMode};
 
 use shader::Shader;
 use camera::Camera;
+use cube::Cube;
 use crate::window::process_events;
 
 // settings
@@ -31,6 +33,9 @@ const WINDOW_WIDTH : u32 = 800;
 const WINDOW_HEIGHT : u32 = 600;
 
 fn main() {
+    // "settings"
+    polygon_mode(PolygonMode::Fill);
+
     // Initialize the event loop and window builder
     //the event loop handles events such as keyboard and mouse input, window resizing, and more.
     let event_loop = EventLoop::new();
@@ -55,67 +60,24 @@ fn main() {
         ..Camera::default()
     };
 
-    //timing
-    let mut delta_time : f32 = 0.0;
-    let mut last_frame : f32 = 0.0;
+    let mut first_mouse = true;
+    let mut last_x: f32 = WINDOW_WIDTH as f32 / 2.0;
+    let mut last_y: f32 = WINDOW_HEIGHT as f32 / 2.0;
 
     // Initialize OpenGL (make opengl functions available within the program)
     gl::load_with(|symbol| context.get_proc_address(symbol) as *const _);
 
+    //TODO move to init objects
+    let cube = Cube::new(Vector3::new(0.0, 0.0, 0.0));
+
     let mut shader_program: Shader;
     let mut vao : GLuint = 0;
     let mut texture1 : GLuint = 0;
-    let mut texture2 : GLuint = 0;
+
     unsafe {
         shader_program = Shader::new("shaders/shader.vs", "shaders/shader.fs");
         gl::UseProgram(shader_program.ID);
         gl::Enable(gl::DEPTH_TEST);
-
-        let vertices: [f32; 180] = [
-            -0.5, -0.5, -0.5,  0.0, 0.0,
-            0.5, -0.5, -0.5,  1.0, 0.0,
-            0.5,  0.5, -0.5,  1.0, 1.0,
-            0.5,  0.5, -0.5,  1.0, 1.0,
-            -0.5,  0.5, -0.5,  0.0, 1.0,
-            -0.5, -0.5, -0.5,  0.0, 0.0,
-
-            -0.5, -0.5,  0.5,  0.0, 0.0,
-            0.5, -0.5,  0.5,  1.0, 0.0,
-            0.5,  0.5,  0.5,  1.0, 1.0,
-            0.5,  0.5,  0.5,  1.0, 1.0,
-            -0.5,  0.5,  0.5,  0.0, 1.0,
-            -0.5, -0.5,  0.5,  0.0, 0.0,
-
-            -0.5,  0.5,  0.5,  1.0, 0.0,
-            -0.5,  0.5, -0.5,  1.0, 1.0,
-            -0.5, -0.5, -0.5,  0.0, 1.0,
-            -0.5, -0.5, -0.5,  0.0, 1.0,
-            -0.5, -0.5,  0.5,  0.0, 0.0,
-            -0.5,  0.5,  0.5,  1.0, 0.0,
-
-            0.5,  0.5,  0.5,  1.0, 0.0,
-            0.5,  0.5, -0.5,  1.0, 1.0,
-            0.5, -0.5, -0.5,  0.0, 1.0,
-            0.5, -0.5, -0.5,  0.0, 1.0,
-            0.5, -0.5,  0.5,  0.0, 0.0,
-            0.5,  0.5,  0.5,  1.0, 0.0,
-
-            -0.5, -0.5, -0.5,  0.0, 1.0,
-            0.5, -0.5, -0.5,  1.0, 1.0,
-            0.5, -0.5,  0.5,  1.0, 0.0,
-            0.5, -0.5,  0.5,  1.0, 0.0,
-            -0.5, -0.5,  0.5,  0.0, 0.0,
-            -0.5, -0.5, -0.5,  0.0, 1.0,
-
-            -0.5,  0.5, -0.5,  0.0, 1.0,
-            0.5,  0.5, -0.5,  1.0, 1.0,
-            0.5,  0.5,  0.5,  1.0, 0.0,
-            0.5,  0.5,  0.5,  1.0, 0.0,
-            -0.5,  0.5,  0.5,  0.0, 0.0,
-            -0.5,  0.5, -0.5,  0.0, 1.0
-        ];
-
-
 
         // Generate and bind vertex array object (VAO)
         gl::GenVertexArrays(1, &mut vao);
@@ -124,7 +86,7 @@ fn main() {
         // Generate and bind vertex buffer object (VBO)
         define_buffer(
             gl::ARRAY_BUFFER,
-            &vertices,
+            &cube.vertices,
             gl::STATIC_DRAW
         );
 
@@ -136,9 +98,11 @@ fn main() {
         // );
 
         // define attribute pointers
+        //TODO this 5 is hard coded, refers to size of each line in vertices array
         let stride = (5 * mem::size_of::<GLfloat>()) as GLsizei;
         define_attrib_pointers(shader_program.ID, stride);
 
+        //todo move out to texture/mesh struct
         // load and create a texture
         let img1 = image::open(
             &Path::new("resources/textures/wall.jpeg"))
@@ -149,9 +113,6 @@ fn main() {
         //assign shader sampler to texture unit
         shader_program.set_int(&CString::new("texture1").unwrap(), 0);
     }
-
-    // set polygon mode:
-    polygon_mode(PolygonMode::Fill);
 
     // Initialize variables for tracking time
     let mut last_frame_time = std::time::Instant::now();
@@ -169,7 +130,7 @@ fn main() {
         let delta_time = delta_time.as_secs() as f32 + delta_time.subsec_nanos() as f32 / 1_000_000_000.0;
 
         // events
-        process_events(event, &mut camera, delta_time, control_flow);
+        process_events(event, &mut first_mouse, &mut last_x, &mut last_y, &mut camera, delta_time, control_flow);
 
         // render
         unsafe {
@@ -182,9 +143,6 @@ fn main() {
             gl::ActiveTexture(gl::TEXTURE0);
             gl::BindTexture(gl::TEXTURE_2D, texture1);
 
-            // create transformations
-            //let model: Matrix4<f32> = Matrix4::from_angle_x(Deg(-55.));
-
             let projection: Matrix4<f32> = perspective(
                 Deg(camera.zoom),
                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
@@ -195,18 +153,15 @@ fn main() {
             let view: Matrix4<f32> = camera.get_view_matrix();
 
             // pass to the shaders
-            //shader_program.set_mat4(&CString::new("model").unwrap(), &model);
             shader_program.set_mat4(&CString::new("view").unwrap(), &view);
             shader_program.set_mat4(&CString::new("projection").unwrap(), &projection);
 
             // draw
             gl::BindVertexArray(vao);
 
-            let position = vec3(0.0, 0.0, 0.0);
-
-            let mut model: Matrix4<f32> = Matrix4::from_translation(position);
+            let mut model: Matrix4<f32> = Matrix4::from_translation(cube.position);
             let angle = 20.0;
-            model = model * Matrix4::from_axis_angle(vec3(1.0, 0.3, 0.5).normalize(), Deg(angle));
+            model = model * Matrix4::from_axis_angle(vec3(1.0, 0.0, 0.5).normalize(), Deg(angle));
             shader_program.set_mat4(&CString::new("model").unwrap(), &model);
 
             gl::DrawArrays(
@@ -249,11 +204,6 @@ unsafe fn define_attrib_pointers(shader_program_id : GLuint, stride : GLsizei) {
         CString::new("position").unwrap().as_ptr()
     );
 
-    let colour_attr_location = gl::GetAttribLocation(
-        shader_program_id,
-        CString::new("colour").unwrap().as_ptr()
-    );
-
     let texture_attr_location = gl::GetAttribLocation(
         shader_program_id,
         CString::new("texture").unwrap().as_ptr()
@@ -269,17 +219,6 @@ unsafe fn define_attrib_pointers(shader_program_id : GLuint, stride : GLsizei) {
         std::ptr::null(),
     );
     gl::EnableVertexAttribArray(pos_attr_location as GLuint);
-
-    // colour attribute
-    gl::VertexAttribPointer(
-        colour_attr_location as GLuint,
-        3,
-        gl::FLOAT,
-        gl::FALSE,
-        stride,
-        (3 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
-    );
-    gl::EnableVertexAttribArray(colour_attr_location as GLuint);
 
     // texture attribute
     gl::VertexAttribPointer(
