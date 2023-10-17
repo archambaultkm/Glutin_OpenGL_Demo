@@ -2,6 +2,7 @@ mod shader;
 mod camera;
 mod window;
 mod cube;
+mod texture;
 
 extern crate gl;
 use gl::types::*;
@@ -9,23 +10,21 @@ use gl::types::*;
 extern crate glutin;
 use glutin::ContextBuilder;
 use glutin::dpi::LogicalSize;
-use glutin::event::{Event, WindowEvent};
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::WindowBuilder;
 
 extern crate cgmath;
-use cgmath::{Deg, InnerSpace, Matrix, Matrix4, perspective, Point3, Rad, SquareMatrix, vec3, Vector3};
+use cgmath::{Deg, InnerSpace, Matrix, Matrix4, perspective, Point3, SquareMatrix, vec3, Vector3};
 
 use std::ffi::CString;
 use std::mem;
-use std::path::Path;
-use image::GenericImage;
 
 use glutin_opengl_demo::{polygon_mode, PolygonMode};
 
 use shader::Shader;
 use camera::Camera;
 use cube::Cube;
+use crate::texture::Texture;
 use crate::window::process_events;
 
 // settings
@@ -33,8 +32,6 @@ const WINDOW_WIDTH : u32 = 800;
 const WINDOW_HEIGHT : u32 = 600;
 
 fn main() {
-    // "settings"
-    polygon_mode(PolygonMode::Fill);
 
     // Initialize the event loop and window builder
     //the event loop handles events such as keyboard and mouse input, window resizing, and more.
@@ -72,7 +69,7 @@ fn main() {
 
     let mut shader_program: Shader;
     let mut vao : GLuint = 0;
-    let mut texture1 : GLuint = 0;
+    let mut texture1 : Texture;
 
     unsafe {
         shader_program = Shader::new("shaders/shader.vs", "shaders/shader.fs");
@@ -90,25 +87,11 @@ fn main() {
             gl::STATIC_DRAW
         );
 
-        // Generate and bind element buffer object (EBO)
-        // define_buffer(
-        //     gl::ELEMENT_ARRAY_BUFFER,
-        //     &indices,
-        //     gl::STATIC_DRAW
-        // );
-
         // define attribute pointers
-        //TODO this 5 is hard coded, refers to size of each line in vertices array
-        let stride = (5 * mem::size_of::<GLfloat>()) as GLsizei;
+        let stride = (((cube.vertices.len()/6)/6) * mem::size_of::<GLfloat>()) as GLsizei;
         define_attrib_pointers(shader_program.ID, stride);
 
-        //todo move out to texture/mesh struct
-        // load and create a texture
-        let img1 = image::open(
-            &Path::new("resources/textures/wall.jpeg"))
-            .expect("Failed to load texture"
-            );
-        texture1 = load_texture(img1, gl::RGB, false);
+        texture1 = Texture::new("resources/textures/wall.jpeg");
 
         //assign shader sampler to texture unit
         shader_program.set_int(&CString::new("texture1").unwrap(), 0);
@@ -118,10 +101,15 @@ fn main() {
     let mut last_frame_time = std::time::Instant::now();
     let mut delta_time = std::time::Duration::new(0, 0);
 
+    // "settings"
+    unsafe { gl::ClearColor(0.7, 0.7, 0.8, 1.0); }
+    polygon_mode(PolygonMode::Fill);
+
     // Main event loop runs until application is terminated.
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
+        //calculate time between frames
         let current_frame_time = std::time::Instant::now();
         delta_time = current_frame_time.duration_since(last_frame_time);
         last_frame_time = current_frame_time;
@@ -136,12 +124,11 @@ fn main() {
         unsafe {
 
             // window background colour
-            gl::ClearColor(0.0, 0.0, 0.0, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             // bind textures on corresponding texture units
             gl::ActiveTexture(gl::TEXTURE0);
-            gl::BindTexture(gl::TEXTURE_2D, texture1);
+            gl::BindTexture(gl::TEXTURE_2D, texture1.id);
 
             let projection: Matrix4<f32> = perspective(
                 Deg(camera.zoom),
@@ -169,12 +156,6 @@ fn main() {
                 0,
                 36
             );
-            // gl::DrawElements(
-            //     gl::TRIANGLES,
-            //     6,
-            //     gl::UNSIGNED_INT,
-            //     0 as *const _
-            // );
         }
 
         context.swap_buffers().unwrap();
@@ -230,37 +211,4 @@ unsafe fn define_attrib_pointers(shader_program_id : GLuint, stride : GLsizei) {
         (3 * mem::size_of::<GLfloat>()) as *const std::ffi::c_void,
     );
     gl::EnableVertexAttribArray(texture_attr_location as GLuint);
-}
-
-unsafe fn load_texture(mut img: image::DynamicImage, format : GLenum, flip : bool) -> GLuint {
-    //borrowed directly from : https://github.com/bwasty/learn-opengl-rs/blob/master/src/_1_getting_started/_4_1_textures.rs
-    let mut texture = 0;
-
-    gl::GenTextures(1, &mut texture);
-    gl::BindTexture(gl::TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
-    // set the texture wrapping parameters
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32); // set texture wrapping to gl::REPEAT (default wrapping method)
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-    // set texture filtering parameters
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-
-    // load image, create texture and generate mipmaps
-    if flip {
-        img = img.flipv(); // flip loaded texture on the y-axis.
-    }
-
-    let data = img.raw_pixels();
-    gl::TexImage2D(gl::TEXTURE_2D,
-                   0,
-                   gl::RGB as i32,
-                   img.width() as i32,
-                   img.height() as i32,
-                   0,
-                   format,
-                   gl::UNSIGNED_BYTE,
-                   &data[0] as *const u8 as *const std::ffi::c_void);
-    gl::GenerateMipmap(gl::TEXTURE_2D);
-
-    texture
 }

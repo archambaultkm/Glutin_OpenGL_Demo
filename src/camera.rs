@@ -83,7 +83,7 @@ impl Camera {
     }
 
     /// Processes input received from a mouse input system. Expects the offset value in both the x and y direction.
-    pub fn process_mouse_movement(&mut self, mut xoffset: f32, mut yoffset: f32, constrainPitch: bool) {
+    pub fn process_mouse_movement(&mut self, mut xoffset: f32, mut yoffset: f32, constrain_pitch: bool) {
         xoffset *= self.mouse_sensitivity;
         yoffset *= self.mouse_sensitivity;
 
@@ -91,7 +91,7 @@ impl Camera {
         self.pitch += yoffset;
 
         // Make sure that when pitch is out of bounds, screen doesn't get flipped
-        if constrainPitch {
+        if constrain_pitch {
             if self.pitch > 89.0 {
                 self.pitch = 89.0;
             }
