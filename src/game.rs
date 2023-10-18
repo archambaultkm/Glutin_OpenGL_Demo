@@ -5,9 +5,7 @@ use crate::game_window::GameWindow;
 use crate::renderer::Renderer;
 use crate::world::World;
 
-pub struct Game {
-
-}
+pub struct Game { }
 
 impl Game {
     pub fn new() -> Self {

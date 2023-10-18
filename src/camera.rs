@@ -104,19 +104,6 @@ impl Camera {
         self.update_camera_vectors();
     }
 
-    // Processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
-    pub fn process_mouse_scroll(&mut self, yoffset: f32) {
-        if self.zoom >= 1.0 && self.zoom <= 45.0 {
-            self.zoom -= yoffset;
-        }
-        if self.zoom <= 1.0 {
-            self.zoom = 1.0;
-        }
-        if self.zoom >= 45.0 {
-            self.zoom = 45.0;
-        }
-    }
-
     /// Calculates the front vector from the Camera's (updated) Eular Angles
     fn update_camera_vectors(&mut self) {
         // Calculate the new front vector
