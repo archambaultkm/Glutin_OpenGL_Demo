@@ -11,7 +11,7 @@ pub struct Game {
 
 impl Game {
     pub fn new() -> Self {
-        Game {}
+        Game { }
     }
 
     pub fn run(&self) {
@@ -21,7 +21,6 @@ impl Game {
         let mut window = GameWindow::new();
 
         // Initialize OpenGL (make opengl functions available within the program)
-        // TODO this should get moved I'm just not sure where
         gl::load_with(|symbol| window.context.get_proc_address(symbol) as *const _);
 
         let world = World::new();

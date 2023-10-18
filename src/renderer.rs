@@ -3,6 +3,7 @@ use std::mem;
 use cgmath::Matrix4;
 use gl::types::{GLenum, GLfloat, GLsizei, GLuint};
 use glutin_opengl_demo::{polygon_mode, PolygonMode};
+use crate::game_specs::POLYGON_MODE;
 use crate::shader::Shader;
 use crate::texture::Texture;
 use crate::world::World;
@@ -57,7 +58,7 @@ impl Renderer {
 
         // "settings"
         unsafe { gl::ClearColor(0.7, 0.7, 0.8, 1.0); }
-        polygon_mode(PolygonMode::Fill);
+        polygon_mode(POLYGON_MODE);
     }
 
     // called from game window loop
