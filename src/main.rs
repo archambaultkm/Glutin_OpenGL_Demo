@@ -3,16 +3,14 @@ mod camera;
 mod game_window;
 mod cube;
 mod texture;
-mod global;
+mod game_specs;
+mod world;
 
 extern crate gl;
 use gl::types::*;
 
 extern crate glutin;
-use glutin::ContextBuilder;
-use glutin::dpi::LogicalSize;
 use glutin::event_loop::{ControlFlow, EventLoop};
-use glutin::window::WindowBuilder;
 
 extern crate cgmath;
 use cgmath::{Deg, InnerSpace, Matrix, Matrix4, perspective, Point3, SquareMatrix, vec3, Vector3};
@@ -23,11 +21,11 @@ use std::mem;
 use glutin_opengl_demo::{polygon_mode, PolygonMode};
 
 use shader::Shader;
-use camera::Camera;
 use cube::Cube;
 use crate::texture::Texture;
 use game_window::GameWindow;
-use crate::global::{WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::game_specs::{WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::world::World;
 
 
 fn main() {
@@ -41,9 +39,10 @@ fn main() {
     // Initialize OpenGL (make opengl functions available within the program)
     gl::load_with(|symbol| window.context.get_proc_address(symbol) as *const _);
 
-    //TODO move to init objects
-    let cube = Cube::new(Vector3::new(0.0, 0.0, 0.0));
+    let world = World::new();
+    let test_cube_pos = Vector3::new(0.0, 0.0, 0.0);
 
+    //TODO this should get moved
     let mut shader_program: Shader;
     let mut vao : GLuint = 0;
     let mut texture1 : Texture;
@@ -57,15 +56,19 @@ fn main() {
         gl::GenVertexArrays(1, &mut vao);
         gl::BindVertexArray(vao);
 
-        // Generate and bind vertex buffer object (VBO)
-        define_buffer(
-            gl::ARRAY_BUFFER,
-            &cube.vertices,
-            gl::STATIC_DRAW
-        );
+        for cube in world.objects {
+            // Generate and bind vertex buffer object (VBO)
+            define_buffer(
+                gl::ARRAY_BUFFER,
+                &cube.vertices,
+                gl::STATIC_DRAW
+            );
+        }
 
+        //this should get moved to shader struct probably?
         // define attribute pointers
-        let stride = (((cube.vertices.len()/6)/6) * mem::size_of::<GLfloat>()) as GLsizei;
+        //TODO hard-coding for now
+        let stride = (5 * mem::size_of::<GLfloat>()) as GLsizei;
         define_attrib_pointers(shader_program.ID, stride);
 
         texture1 = Texture::new("resources/textures/wall.jpeg");
@@ -123,7 +126,7 @@ fn main() {
             // draw
             gl::BindVertexArray(vao);
 
-            let mut model: Matrix4<f32> = Matrix4::from_translation(cube.position);
+            let mut model: Matrix4<f32> = Matrix4::from_translation(test_cube_pos); //TODO
             let angle = 20.0;
             model = model * Matrix4::from_axis_angle(vec3(1.0, 0.0, 0.0).normalize(), Deg(angle));
             shader_program.set_mat4(&CString::new("model").unwrap(), &model);

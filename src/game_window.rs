@@ -1,8 +1,4 @@
-use std::ffi::CString;
-use std::time::Instant;
-use cgmath::{Deg, InnerSpace, Matrix4, perspective, vec3, Vector3};
-use gl::types::GLuint;
-use crate::global::*;
+use crate::game_specs::*;
 
 use glutin::{ContextBuilder, ContextWrapper, PossiblyCurrent};
 use glutin::dpi::LogicalSize;
@@ -10,11 +6,6 @@ use glutin::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEv
 use glutin::event_loop::{ControlFlow, EventLoop};
 use glutin::window::{Window, WindowBuilder};
 use crate::camera::{Camera, Camera_Movement::*, Point3};
-
-//get these outta here
-use crate::cube::Cube;
-use crate::shader::Shader;
-use crate::texture::Texture;
 
 pub struct GameWindow {
     event_loop : EventLoop<()>,
@@ -49,11 +40,6 @@ impl GameWindow {
         let mut first_mouse = true;
         let mut last_x: f32 = WINDOW_WIDTH as f32 / 2.0;
         let mut last_y: f32 = WINDOW_HEIGHT as f32 / 2.0;
-
-        //TODO get these out
-        // let mut vao : GLuint = 0;
-        // let cube = Cube::new(Vector3::new(0.0, 0.0, 0.0));
-        // let texture1 = unsafe { Texture::new("resources/textures/wall.jpeg") };
 
         GameWindow {
             event_loop,
@@ -141,68 +127,4 @@ impl GameWindow {
             }
         }
     }
-
-    // pub fn run(&mut self) {
-    //     // Initialize variables for tracking time
-    //     let mut last_frame_time = std::time::Instant::now();
-    //     let mut delta_time = std::time::Duration::new(0, 0);
-    //
-    //     // Main event loop runs until application is terminated.
-    //     self.event_loop.run(move |event, _, control_flow| {
-    //         *control_flow = ControlFlow::Poll;
-    //
-    //         // Calculate time between frames
-    //         let current_frame_time = std::time::Instant::now();
-    //         delta_time = current_frame_time.duration_since(last_frame_time);
-    //         last_frame_time = current_frame_time;
-    //
-    //         // Convert delta_time to seconds as a floating-point number
-    //         let delta_time = delta_time.as_secs() as f32
-    //             + delta_time.subsec_nanos() as f32 / 1_000_000_000.0;
-    //
-    //         // Handle events using the cloned reference
-    //         self.process_events(event, delta_time, control_flow);
-    //
-    //         //TODO move out somewhere
-    //         // render
-    //         unsafe {
-    //
-    //             // window background colour
-    //             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-    //
-    //             // bind textures on corresponding texture units
-    //             gl::ActiveTexture(gl::TEXTURE0);
-    //             gl::BindTexture(gl::TEXTURE_2D, self.texture1.id);
-    //
-    //             let projection: Matrix4<f32> = perspective(
-    //                 Deg(self.camera.zoom),
-    //                 WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
-    //                 0.1,
-    //                 100.0
-    //             );
-    //
-    //             let view: Matrix4<f32> = self.camera.get_view_matrix();
-    //
-    //             // pass to the shaders
-    //             self.shader_program.set_mat4(&CString::new("view").unwrap(), &view);
-    //             self.shader_program.set_mat4(&CString::new("projection").unwrap(), &projection);
-    //
-    //             // draw
-    //             gl::BindVertexArray(self.vao);
-    //
-    //             let mut model: Matrix4<f32> = Matrix4::from_translation(self.cube.position);
-    //             let angle = 20.0;
-    //             model = model * Matrix4::from_axis_angle(vec3(1.0, 0.0, 0.0).normalize(), Deg(angle));
-    //             self.shader_program.set_mat4(&CString::new("model").unwrap(), &model);
-    //
-    //             gl::DrawArrays(
-    //                 gl::TRIANGLES,
-    //                 0,
-    //                 36
-    //             );
-    //         }
-    //
-    //         self.context.swap_buffers().unwrap();
-    //     });
-    // }
 }
