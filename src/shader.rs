@@ -5,14 +5,14 @@ use cgmath::{Matrix, Matrix4};
 use gl::types::{GLchar, GLenum, GLint, GLuint};
 
 pub struct Shader {
-    //program ID
-    pub ID: u32
+    //program id
+    pub id: u32
 }
 
 impl Shader {
     pub fn new(vertex_file_path : &str, fragment_file_path : &str) -> Shader {
 
-        let mut shader_program = Shader { ID: 0};
+        let mut shader_program = Shader { id: 0};
 
         let vertex_shader = shader_code_from_file(vertex_file_path);
         let fragment_shader = shader_code_from_file(fragment_file_path);
@@ -20,33 +20,33 @@ impl Shader {
         // Compile and link shaders
         let vertex_shader = compile_shader(vertex_shader, gl::VERTEX_SHADER);
         let fragment_shader = compile_shader(fragment_shader, gl::FRAGMENT_SHADER);
-        shader_program.ID = create_shader_program(vertex_shader, fragment_shader);
+        shader_program.id = create_shader_program(vertex_shader, fragment_shader);
 
         shader_program
     }
 
     pub unsafe fn set_bool(&self, name: &CStr, value: bool) {
         gl::Uniform1i(
-            gl::GetUniformLocation(self.ID, name.as_ptr()),
+            gl::GetUniformLocation(self.id, name.as_ptr()),
             value as i32
         );
     }
     pub unsafe fn set_int(&self, name: &CStr, value: i32) {
         gl::Uniform1i(gl::GetUniformLocation(
-            self.ID,
+            self.id,
             name.as_ptr()
         ), value);
     }
     pub unsafe fn set_float(&self, name: &CStr, value: f32) {
         gl::Uniform1f(
-            gl::GetUniformLocation(self.ID, name.as_ptr()),
+            gl::GetUniformLocation(self.id, name.as_ptr()),
             value
         );
     }
 
     pub unsafe fn set_mat4(&self, name: &CStr, matrix : &Matrix4<f32>) {
         let location = gl::GetUniformLocation(
-            self.ID,
+            self.id,
             name.as_ptr()
         );
 
